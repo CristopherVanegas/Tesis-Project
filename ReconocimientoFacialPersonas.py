@@ -4,9 +4,8 @@ from tkinter import Label
 import os
 import numpy as np
 
-# Cargar los clasificadores Haar para rostros y ojos
+# Cargar los clasificadores Haar para rostros
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
 # Inicializar el capturador de video (0 por defecto es la cámara principal)
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
@@ -17,17 +16,17 @@ if not cap.isOpened():
 
 # Crear la ventana de la interfaz con Tkinter
 root = tk.Tk()
-root.title("Detección de Rostros con Lentes")
+root.title("Detección de Rostros")
 
-# Instrucción en la interfaz gráfica
-instruction_label = Label(root, text="Presiona 'o' para tomar foto\nPresiona 'q' para salir", font=('Arial', 14))
+# Instrucción en la interfaz gráfica (instrucciones en color negro)
+instruction_label = Label(root, text="Presiona 'o' para tomar foto\nPresiona 'q' para salir", font=('Arial', 14), fg="black")
 instruction_label.pack()
 
 # Variable para almacenar la imagen capturada
 captured_frame = None
 
 # Inicializar el reconocedor de rostros LBPH
-recognizer = cv2.face.LBPHFaceRecognizer_create()
+recognizer = cv2.face.LBPHFaceRecognizer_create(radius=2, neighbors=8, grid_x=8, grid_y=8)
 
 # Ruta para almacenar el archivo de entrenamiento
 training_data_path = "trainer"
@@ -93,37 +92,38 @@ while True:
         print("Error: No se pudo obtener el frame de la cámara")
         break
 
-    # Mostrar las instrucciones de las teclas en el frame
-    cv2.putText(frame, "Presiona 'o' para tomar foto", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-    cv2.putText(frame, "Presiona 'q' para salir", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    # Mostrar las instrucciones de las teclas en el frame (instrucciones en color negro)
+    cv2.putText(frame, "Presiona 'o' para tomar foto", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    cv2.putText(frame, "Presiona 'q' para salir", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-    # Si ya se han registrado rostros, hacer reconocimiento en vivo
-    if len(face_samples) > 0:  # Verifica si ya se registraron rostros
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # Detectar rostros en la imagen
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
-        # Detectar rostros en la imagen
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+    # Dibujar un recuadro alrededor de los rostros detectados
+    for (x, y, w, h) in faces:
+        # Dibujar un recuadro alrededor del rostro (verde para los rostros registrados)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Dibujar un rectángulo azul alrededor de los rostros detectados
-        for (x, y, w, h) in faces:
-            # Dibujar un rectángulo azul alrededor del rostro
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-            # Región de los ojos dentro del rostro detectado
-            roi_gray = gray[y:y + h, x:x + w]
-            eyes = eye_cascade.detectMultiScale(roi_gray)
-
-            # Si se detectan al menos 2 ojos, considera que la persona usa lentes
-            if len(eyes) >= 2:  # Si se detectan dos ojos, probablemente esté usando lentes
-                # Añadir texto sobre el rectángulo del rostro
-                cv2.putText(frame, "Utiliza lentes", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
+        # Si ya se ha registrado al menos un rostro, hacer reconocimiento
+        if len(face_samples) > 0:
             # Reconocer al rostro registrado
+            roi_gray = gray[y:y + h, x:x + w]
             id_, confidence = recognizer.predict(roi_gray)
-            if confidence < 100:  # Si la confianza es baja, significa que se reconoce bien
+
+            # Si la confianza es demasiado alta (indica que no se reconoce bien), lo marcamos como "No Reconocido"
+            if confidence > 100:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)  # Rojo para no reconocido
+                cv2.putText(frame, "No Reconocido", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            else:
+                # Si la confianza es baja, significa que se reconoce bien
                 name = id_to_name.get(id_, "Desconocido")  # Obtener el nombre desde el diccionario
                 cv2.putText(frame, f"Nombre: {name}", (x, y - 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Cuadro verde para la persona reconocida
+        else:
+            # Si no se han registrado rostros, no hacer predicción
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)  # Rojo para no reconocido
+            cv2.putText(frame, "No Reconocido", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     # Mostrar el video en vivo con el cuadro y el nombre
     cv2.imshow('Camera Live', frame)

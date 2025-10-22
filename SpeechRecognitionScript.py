@@ -7,7 +7,7 @@ mic = sr.Microphone()
 print('Start Talking')
 
 commands = [
-    'take assistance'
+    'registrar rostros'
 ]
 
 def ReconocerComandos():
@@ -16,7 +16,7 @@ def ReconocerComandos():
             audio = r.listen(source)
 
         try:
-            words = r.recognize_google(audio)
+            words = r.recognize_google(audio, language='es-ES')
             print(words)
 
             if words in commands:
